@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EduFlux | Dashboard Premium</title>
+    
+    <!-- PWA & Mobile Optimization -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EduFlux">
+    <meta name="theme-color" content="#003c5b">
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "work-primary": "#003c5b",
+                        "work-secondary": "#00638f",
+                        "work-accent-1": "#80a51b",
+                        "work-accent-2": "#c8d400",
+                        "college-primary": "#35b5a8",
+                        "college-secondary": "#324395",
+                        "college-accent": "#003c5b",
+                        "overdue-red": "#ff4d4d",
+                    },
+                    fontFamily: { "display": ["Inter", "sans-serif"] }
+                },
+            },
+        }
+    </script>
+
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f1f5f9; 
+            overscroll-behavior-y: contain;
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .kanban-column {
+            min-width: 85vw;
+            max-width: 360px;
+            scroll-snap-align: center;
+        }
+
+        @media (min-width: 768px) {
+            .kanban-column {
+                min-width: 330px;
+                scroll-snap-align: none;
+            }
+        }
+
+        .overdue-glow {
+            box-shadow: 0 0 25px rgba(255, 77, 77, 0.3);
+            border: 3px solid #ff4d4d !important;
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(255, 77, 77, 0.4); }
+            50% { border-color: rgba(255, 77, 77, 1); }
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .task-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: grab;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
+        }
+
+        .task-card.dragging { opacity: 0.5; transform: scale(0.92); }
+        
+        .column-drag-over { 
+            background: rgba(0, 0, 0, 0.05); 
+            border: 2px dashed rgba(0, 0, 0, 0.1);
+            border-radius: 2rem; 
+        }
+
+        aside#sidebar {
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s ease;
+        }
+
+        .sidebar-collapsed .sidebar-text,
+        .sidebar-collapsed #sidebarSub,
+        .sidebar-collapsed #sectorTitle,
+        .sidebar-collapsed #user-info {
+            display: none;
+        }
+
+        .sidebar-collapsed #logo-text {
+            display: none;
+        }
+
+        .sidebar-collapsed nav a, 
+        .sidebar-collapsed #logoContainerWrapper {
+            justify-content: center;
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        .sidebar-collapsed #logoContainerWrapper {
+            margin-bottom: 1rem;
+        }
+
+        .sidebar-collapsed #sidebar-header {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .sidebar-collapsed #collapse-btn {
+            transform: rotate(180deg);
+            margin-top: 1rem;
+        }
+
+        aside, header, button { transition: all 0.3s ease; }
+        
+        .column-scroll::-webkit-scrollbar { width: 4px; }
+        .column-scroll::-webkit-scrollbar-track { background: transparent; }
+        .column-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        #kanbanContainer {
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #sidebarOverlay {
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease;
+        }
+
+        #loading-screen {
+            background: #003c5b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="text-slate-900 antialiased overflow-hidden">
+
+    <!-- Tela de Carregamento -->
+    <div id="loading-screen" class="fixed inset-0 text-white transition-opacity duration-500">
+        <div class="size-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+        <h2 class="text-2xl font-black tracking-tighter">EduFlux</h2>
+        <p class="text-[10px] opacity-60 uppercase tracking-widest mt-2">Restaurando Ambiente...</p>
+    </div>
+
+    <div class="flex h-screen w-full overflow-hidden relative">
+        
+        <!-- Sidebar Overlay (Mobile) -->
+        <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 z-40 hidden lg:hidden opacity-0 pointer-events-none"></div>
+
+        <!-- Sidebar Esquerda - Colorida e Vibrante -->
+        <aside id="sidebar" class="fixed lg:relative flex flex-col w-72 h-full text-white p-4 lg:p-6 gap-8 shadow-2xl z-50 -translate-x-full lg:translate-x-0">
+            <div id="sidebar-header" class="flex items-center justify-between gap-4 px-2 py-4">
+                <div id="logoContainerWrapper" class="flex items-center gap-4">
+                    <div id="logoContainer" class="size-10 lg:size-12 rounded-2xl flex items-center justify-center shadow-xl bg-white/20 backdrop-blur-md shrink-0">
+                        <span class="material-symbols-outlined text-2xl lg:text-3xl text-white">school</span>
+                    </div>
+                    <div id="logo-text">
+                        <h1 class="text-xl lg:text-2xl font-black tracking-tighter text-white">EduFlux</h1>
+                        <p class="text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.2em] opacity-60" id="sidebarSub">Gestão 2k+</p>
+                    </div>
+                </div>
+                <button id="collapse-btn" onclick="toggleDesktopCollapse()" class="hidden lg:flex size-8 rounded-full bg-white/10 hover:bg-white/20 items-center justify-center transition-all">
+                    <span class="material-symbols-outlined text-sm">menu_open</span>
+                </button>
+                <button onclick="toggleSidebar()" class="lg:hidden text-white/60 hover:text-white">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <nav class="flex-1 flex flex-col gap-2 overflow-y-auto hide-scrollbar">
+                <a class="flex items-center gap-4 px-5 py-4 rounded-xl font-black transition-all bg-white/10 hover:bg-white/20 shadow-lg border border-white/5" href="#" id="nav-all" onclick="handleNavClick('all')">
+                    <span class="material-symbols-outlined shrink-0">grid_view</span> <span class="sidebar-text">Painel Geral</span>
+                </a>
+                
+                <div class="mt-6 mb-3 px-4" id="sectorTitleWrapper">
+                    <p class="text-[11px] font-black uppercase tracking-[0.2em] opacity-50 whitespace-nowrap" id="sectorTitle">Setores</p>
+                </div>
+                <div id="dynamicFilters" class="flex flex-col gap-1"></div>
+            </nav>
+
+            <div class="mt-auto flex flex-col gap-4">
+                <button onclick="openConfigModal()" class="flex items-center gap-4 px-5 py-3 rounded-xl hover:bg-white/10 transition-all text-sm font-black opacity-80 hover:opacity-100 text-left">
+                    <span class="material-symbols-outlined shrink-0">settings_suggest</span> <span class="sidebar-text">Ajustes</span>
+                </button>
+                <div class="p-4 lg:p-5 rounded-[1.8rem] bg-black/20 border border-white/10 backdrop-blur-md">
+                    <div class="flex items-center gap-4">
+                        <div id="userBadge" class="size-10 rounded-full bg-white text-primary font-black flex items-center justify-center shrink-0 shadow-sm text-blue-900 uppercase">CP</div>
+                        <div class="overflow-hidden" id="user-info">
+                            <p class="text-sm font-black truncate">Coordenador(a)</p>
+                            <p id="userIdDisplay" class="text-[8px] uppercase font-bold opacity-30 truncate">Sincronizando...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Área Principal -->
+        <main class="flex-1 flex flex-col h-full relative overflow-hidden bg-slate-50/50">
+            <header class="h-20 lg:h-24 flex items-center justify-between px-4 lg:px-10 border-b border-slate-200 bg-white shadow-sm z-10">
+                <div class="flex items-center gap-3 lg:gap-10 flex-1">
+                    <button onclick="toggleSidebar()" class="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                        <span class="material-symbols-outlined">menu</span>
+                    </button>
+                    <div class="flex bg-slate-100 p-1.5 rounded-2xl w-full max-w-[220px] lg:max-w-[350px] border border-slate-200 shadow-inner">
+                        <button onclick="switchContext('work')" id="btn-work" class="flex-1 flex items-center justify-center gap-1 lg:gap-3 py-2 lg:py-2.5 px-2 lg:px-4 rounded-xl text-[10px] lg:text-sm font-bold transition-all truncate">
+                            <span class="material-symbols-outlined text-sm lg:text-lg">work</span> <span class="hidden sm:inline">Trabalho</span>
+                        </button>
+                        <button onclick="switchContext('college')" id="btn-college" class="flex-1 flex items-center justify-center gap-1 lg:gap-3 py-2 lg:py-2.5 px-2 lg:px-4 rounded-xl text-[10px] lg:text-sm font-bold transition-all truncate">
+                            <span class="material-symbols-outlined text-sm lg:text-lg">history_edu</span> <span class="hidden sm:inline">Faculdade</span>
+                        </button>
+                    </div>
+                    <div class="hidden sm:flex flex-1 max-w-lg relative group">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-600 transition-colors">search</span>
+                        <input oninput="renderBoard()" id="searchInput" class="w-full bg-slate-100 border-none rounded-2xl pl-12 pr-6 py-3.5 text-sm focus:ring-2 focus:ring-slate-300 transition-all placeholder:text-slate-500 font-bold" placeholder="Procurar demandas..." type="text"/>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="openTaskModal()" id="addTaskBtn" class="hidden lg:flex items-center gap-3 text-white px-10 py-4 rounded-2xl font-black shadow-2xl hover:scale-105 transition-all">
+                        <span class="material-symbols-outlined font-black">add_task</span> ADICIONAR
+                    </button>
+                </div>
+            </header>
+
+            <!-- Quadro Kanban Expandido -->
+            <div id="kanbanContainer" class="flex-1 overflow-x-auto p-4 lg:p-10 hide-scrollbar flex gap-6 lg:gap-10 h-full items-start"></div>
+
+            <button onclick="openTaskModal()" id="addTaskBtnMobile" class="lg:hidden fixed bottom-6 right-6 size-16 rounded-full text-white shadow-2xl flex items-center justify-center z-30 active:scale-90 transition-transform">
+                <span class="material-symbols-outlined text-3xl font-black">add</span>
+            </button>
+        </main>
+    </div>
+
+    <!-- Modais Premium -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md hidden z-[100] flex items-end sm:items-center justify-center">
+        <div class="bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-2xl shadow-2xl border border-white/20 overflow-hidden animate-in slide-in-from-bottom sm:slide-in-from-none duration-300">
+            <div class="p-8 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                    <h3 id="modalTitle" class="text-2xl font-black text-slate-800">Nova Demanda</h3>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sincronizado com Firebase</p>
+                </div>
+                <button onclick="closeTaskModal()" class="size-10 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors shrink-0"><span class="material-symbols-outlined">close</span></button>
+            </div>
+            <div class="p-8 lg:p-10 max-h-[70vh] lg:max-h-[60vh] overflow-y-auto column-scroll">
+                <form id="taskForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+                    <input type="hidden" id="taskId">
+                    <div class="md:col-span-2">
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Título da Tarefa</label>
+                        <input type="text" id="taskTitle" required class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 transition-all text-sm font-bold text-slate-700">
+                    </div>
+                    <div>
+                        <label id="taskSectorLabel" class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Origem</label>
+                        <select id="taskSector" class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 text-sm font-bold text-slate-700"></select>
+                    </div>
+                    <div id="subjectField" class="hidden">
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Disciplina</label>
+                        <select id="taskSubject" class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 text-sm font-bold text-slate-700"></select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Status</label>
+                        <select id="taskStatus" class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 text-sm font-bold text-slate-700"></select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Prioridade</label>
+                        <select id="taskPriority" class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 text-sm font-bold text-slate-700">
+                            <option value="low">Baixo</option>
+                            <option value="medium" selected>Média</option>
+                            <option value="high">Urgente</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Prazo</label>
+                        <input type="date" id="taskDeadline" class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 text-sm font-bold text-slate-700">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500 mb-3">Observações</label>
+                        <textarea id="taskDesc" rows="3" class="w-full bg-slate-50 border-slate-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-slate-100 text-sm font-bold text-slate-700"></textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <div class="flex justify-between items-center mb-4">
+                            <label class="block text-[11px] font-black uppercase tracking-widest text-slate-500">Checklist</label>
+                            <button type="button" onclick="addChecklistItem()" id="addCheckBtn" class="text-xs font-black uppercase border-b-2 tracking-tighter">+ Adicionar</button>
+                        </div>
+                        <div id="checklistItems" class="space-y-3"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="p-8 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between gap-4">
+                <button id="deleteBtn" onclick="deleteTask()" class="text-red-500 font-black text-xs uppercase tracking-[0.15em] px-4 hidden sm:block">Apagar Demanda</button>
+                <div class="flex gap-4 sm:ml-auto w-full sm:w-auto">
+                    <button onclick="closeTaskModal()" class="flex-1 sm:flex-none px-8 py-4 text-slate-400 font-black text-xs uppercase tracking-widest">Sair</button>
+                    <button onclick="saveTask()" id="modalSaveBtn" class="flex-1 sm:flex-none px-12 py-4 text-white font-black rounded-2xl shadow-xl hover:brightness-110 transition-all text-sm uppercase">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajustes -->
+    <div id="configModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md hidden z-[100] flex items-center justify-center p-0 lg:p-4">
+        <div class="bg-white h-full lg:h-auto lg:rounded-[3rem] w-full max-w-5xl shadow-2xl border border-white/20 overflow-hidden flex flex-col">
+            <div class="p-8 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div>
+                    <h3 class="text-2xl font-black text-slate-800 tracking-tighter">Ajustes do Fluxo</h3>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1" id="configCtxName">Configurações Atuais</p>
+                </div>
+                <button onclick="closeConfigModal()" class="size-12 rounded-full hover:bg-slate-200 flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-2xl text-slate-400">close</span></button>
+            </div>
+            <div class="p-8 lg:p-12 grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12 overflow-y-auto">
+                <div>
+                    <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Origem / Setores</p>
+                    <div id="cfgSectors" class="space-y-3 mb-6"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="addSecInp" class="flex-1 bg-slate-100 border-none rounded-xl text-xs font-bold px-4 h-12" placeholder="Novo...">
+                        <button onclick="addCfgItem('sectors', 'addSecInp')" id="cfgAddBtn1" class="text-white size-12 rounded-xl shadow-lg shrink-0 flex items-center justify-center"><span class="material-symbols-outlined">add</span></button>
+                    </div>
+                </div>
+                <div id="cfgSubjDiv">
+                    <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Matérias Acadêmicas</p>
+                    <div id="cfgSubjects" class="space-y-3 mb-6"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="addSubjInp" class="flex-1 bg-slate-100 border-none rounded-xl text-xs font-bold px-4 h-12" placeholder="Nova...">
+                        <button onclick="addCfgItem('subjects', 'addSubjInp')" id="cfgAddBtn2" class="text-white size-12 rounded-xl shadow-lg shrink-0 flex items-center justify-center"><span class="material-symbols-outlined">add</span></button>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-6">Colunas do Quadro</p>
+                    <div id="cfgStatuses" class="space-y-3 mb-6"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="addStatInp" class="flex-1 bg-slate-100 border-none rounded-xl text-xs font-bold px-4 h-12" placeholder="Novo status...">
+                        <button onclick="addCfgItem('statuses', 'addStatInp')" id="cfgAddBtn3" class="text-white size-12 rounded-xl shadow-lg shrink-0 flex items-center justify-center"><span class="material-symbols-outlined">add</span></button>
+                    </div>
+                </div>
+            </div>
+            <div class="p-8 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                <button onclick="closeConfigModal()" class="w-full lg:w-auto px-16 py-4 bg-slate-900 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-xl hover:bg-black transition-all">Salvar e Concluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, query, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuração original injetada
+        const firebaseConfig = {
+            apiKey: "AIzaSyDC9hYDV-J1UKHyYU1BEC5ycvjYQ0j7-O0", 
+            authDomain: "fmm-todo.firebaseapp.com",
+            projectId: "fmm-todo",
+            storageBucket: "fmm-todo.firebasestorage.app",
+            messagingSenderId: "379978765516",
+            appId: "1:379978765516:web:b6921cff9a6d21853fde69"
+        };
+
+        const actualConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+        const app = initializeApp(actualConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'eduflux-premium-final';
+
+        // --- Estado do App ---
+        const COLORS = {
+            work: { primary: '#003c5b', secondary: '#00638f', accent1: '#80a51b', accent2: '#c8d400', glow: 'rgba(0, 60, 91, 0.4)' },
+            college: { primary: '#35b5a8', secondary: '#324395', accent1: '#003c5b', glow: 'rgba(53, 181, 168, 0.4)' }
+        };
+
+        const DEFAULT_SETTINGS = {
+            work: { sectors: ["Secretaria", "Professores", "Pais", "Direção", "Alunos"], subjects: [], statuses: ["A Fazer", "Em Andamento", "Concluído"] },
+            college: { sectors: ["Provas", "Trabalhos", "Leitura", "Pesquisa"], subjects: ["Psicologia", "Metodologia", "História", "Gestão"], statuses: ["Pendente", "Estudando", "Entregue"] }
+        };
+
+        let settings = DEFAULT_SETTINGS;
+        let tasks = [];
+        let currentContext = localStorage.getItem('eduflux_ctx') || 'work';
+        let currentFilter = 'all';
+        let isSidebarCollapsed = localStorage.getItem('eduflux_sidebar_collapsed') === 'true';
+        let user = null;
+
+        // --- Firebase Core ---
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Erro auth:", err);
+                hideLoading();
+            }
+        };
+
+        onAuthStateChanged(auth, (u) => {
+            user = u;
+            if (user) {
+                document.getElementById('userIdDisplay').innerText = `ID: ${user.uid.substring(0, 10)}`;
+                setupSync();
+            }
+        });
+
+        const withRetry = async (fn) => {
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try { return await fn(); } 
+                catch (err) { await new Promise(r => setTimeout(r, delay)); delay *= 2; }
+            }
+        };
+
+        const setupSync = () => {
+            if (!user) return;
+            const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config');
+            onSnapshot(settingsRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    settings = snapshot.data();
+                } else {
+                    withRetry(() => setDoc(settingsRef, DEFAULT_SETTINGS));
+                    settings = DEFAULT_SETTINGS;
+                }
+                renderSidebar();
+                renderBoard();
+                switchContext(currentContext); // Força atualização das cores
+                hideLoading();
+            }, (err) => console.error("Snapshot settings erro:", err));
+
+            const tasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
+            onSnapshot(tasksRef, (snapshot) => {
+                tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderBoard();
+            }, (err) => console.error("Snapshot tasks erro:", err));
+        };
+
+        const hideLoading = () => {
+            const screen = document.getElementById('loading-screen');
+            if (screen) {
+                screen.classList.add('opacity-0', 'pointer-events-none');
+                setTimeout(() => screen.remove(), 500);
+            }
+        };
+
+        // --- UI Logic (Desktop & Mini) ---
+        window.toggleDesktopCollapse = () => {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('sidebar-collapsed')) {
+                sidebar.classList.remove('sidebar-collapsed');
+                sidebar.classList.replace('w-20', 'w-72');
+                isSidebarCollapsed = false;
+            } else {
+                sidebar.classList.add('sidebar-collapsed');
+                sidebar.classList.replace('w-72', 'w-20');
+                isSidebarCollapsed = true;
+            }
+            localStorage.setItem('eduflux_sidebar_collapsed', isSidebarCollapsed);
+            renderSidebar();
+        };
+
+        window.toggleSidebar = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.add('opacity-100'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.remove('opacity-100');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        };
+
+        window.handleNavClick = (filter) => {
+            currentFilter = filter;
+            if (window.innerWidth < 1024) toggleSidebar();
+            renderSidebar();
+            renderBoard();
+        };
+
+        window.switchContext = (ctx) => {
+            currentContext = ctx;
+            currentFilter = 'all';
+            localStorage.setItem('eduflux_ctx', ctx);
+            const colors = COLORS[ctx];
+            
+            const sidebar = document.getElementById('sidebar');
+            const btnWork = document.getElementById('btn-work');
+            const btnCollege = document.getElementById('btn-college');
+            const addTaskBtn = document.getElementById('addTaskBtn');
+            const addTaskBtnMobile = document.getElementById('addTaskBtnMobile');
+            const userBadge = document.getElementById('userBadge');
+            const addCheckBtn = document.getElementById('addCheckBtn');
+            const modalSaveBtn = document.getElementById('modalSaveBtn');
+            const cfgAddBtns = [document.getElementById('cfgAddBtn1'), document.getElementById('cfgAddBtn2'), document.getElementById('cfgAddBtn3')];
+
+            sidebar.style.backgroundColor = colors.primary;
+            userBadge.style.color = colors.primary;
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', colors.primary);
+
+            [btnWork, btnCollege].forEach(b => b.className = "flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-bold transition-all text-slate-400");
+            
+            if (ctx === 'work') {
+                btnWork.className = "flex-1 flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-white text-slate-800 shadow-md text-sm font-black border border-slate-200";
+                addTaskBtn.style.backgroundColor = colors.secondary;
+                addTaskBtnMobile.style.backgroundColor = colors.secondary;
+                addTaskBtn.style.boxShadow = `0 15px 30px ${colors.glow}`;
+                addCheckBtn.style.color = colors.primary;
+                modalSaveBtn.style.backgroundColor = colors.primary;
+                cfgAddBtns.forEach(b => b.style.backgroundColor = colors.secondary);
+                document.getElementById('sidebarSub').innerText = "Coordenação 2k+";
+            } else {
+                btnCollege.className = "flex-1 flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl bg-white text-slate-800 shadow-md text-sm font-black border border-slate-200";
+                addTaskBtn.style.backgroundColor = colors.secondary;
+                addTaskBtnMobile.style.backgroundColor = colors.secondary;
+                addTaskBtn.style.boxShadow = `0 15px 30px ${colors.glow}`;
+                addCheckBtn.style.color = colors.primary;
+                modalSaveBtn.style.backgroundColor = colors.primary;
+                cfgAddBtns.forEach(b => b.style.backgroundColor = colors.secondary);
+                document.getElementById('sidebarSub').innerText = "Evolução Acadêmica";
+            }
+            renderSidebar();
+            renderBoard();
+        };
+
+        const renderSidebar = () => {
+            const cfg = settings[currentContext];
+            const colors = COLORS[currentContext];
+            const container = document.getElementById('dynamicFilters');
+            if (!container) return;
+            container.innerHTML = '';
+            cfg.sectors.forEach(s => {
+                const a = document.createElement('a');
+                a.href = "#";
+                a.onclick = () => handleNavClick(s);
+                const isActive = currentFilter === s;
+                a.className = `flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all text-sm font-bold ${isActive ? 'bg-white shadow-lg text-primary scale-105' : 'text-white/60 hover:text-white hover:bg-white/5'}`;
+                if(isActive) a.style.color = colors.primary;
+                a.innerHTML = `<span class="material-symbols-outlined text-[10px] shrink-0">circle</span> <span class="sidebar-text">${s}</span>`;
+                container.appendChild(a);
+            });
+            const navAll = document.getElementById('nav-all');
+            const isAllActive = currentFilter === 'all';
+            navAll.className = `flex items-center gap-4 px-5 py-4 rounded-xl transition-all font-black text-sm ${isAllActive ? 'bg-white shadow-xl text-primary scale-105' : 'text-white/60 hover:bg-white/5'}`;
+            if(isAllActive) navAll.style.color = colors.primary;
+            else navAll.style.color = '';
+        };
+
+        window.renderBoard = () => {
+            const cfg = settings[currentContext];
+            const board = document.getElementById('kanbanContainer');
+            if (!board) return;
+            board.innerHTML = '';
+            const searchInput = document.getElementById('searchInput');
+            const search = searchInput ? searchInput.value.toLowerCase() : "";
+            const today = new Date().toISOString().split('T')[0];
+            const prioWeight = { high: 3, medium: 2, low: 1 };
+
+            cfg.statuses.forEach((status, idx) => {
+                const isFinal = idx === cfg.statuses.length - 1;
+                const col = document.createElement('div');
+                col.className = 'kanban-column flex flex-col gap-6 h-full p-2';
+                col.ondragover = e => e.preventDefault();
+                col.ondrop = async e => {
+                    const tid = e.dataTransfer.getData('text');
+                    if (user && tid) {
+                        const taskRef = doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', tid);
+                        await withRetry(() => updateDoc(taskRef, { status: status }));
+                    }
+                };
+
+                let filteredTasks = tasks.filter(t => 
+                    t.context === currentContext && t.status === status &&
+                    (currentFilter === 'all' || t.sector === currentFilter) &&
+                    (t.title.toLowerCase().includes(search))
+                );
+
+                filteredTasks.sort((a,b) => {
+                    if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline) || prioWeight[b.priority] - prioWeight[a.priority];
+                    return (a.deadline ? -1 : 1) || prioWeight[b.priority] - prioWeight[a.priority];
+                });
+
+                col.innerHTML = `
+                    <div class="flex items-center justify-between px-4 mb-4 shrink-0">
+                        <div class="flex items-center gap-3">
+                            <h3 class="font-black text-[10px] lg:text-xs uppercase tracking-[0.2em] text-slate-400 truncate">${status}</h3>
+                            <span class="px-3 py-1 rounded-full bg-slate-200 text-[9px] lg:text-[11px] font-black text-slate-600 shadow-inner">${filteredTasks.length}</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-5 overflow-y-auto pr-2 column-scroll flex-1" id="col-${status.replace(/\s/g, '_')}"></div>
+                `;
+                board.appendChild(col);
+                const list = document.getElementById(`col-${status.replace(/\s/g, '_')}`);
+                filteredTasks.forEach(task => list.appendChild(createTaskCard(task, today, isFinal)));
+            });
+        };
+
+        const createTaskCard = (task, today, isFinal) => {
+            const isOverdue = task.deadline && task.deadline < today && !isFinal;
+            const div = document.createElement('div');
+            div.draggable = true;
+            div.className = `task-card bg-white p-6 rounded-[1.8rem] shadow-sm border border-slate-100 relative overflow-hidden group ${isOverdue ? 'overdue-glow' : ''}`;
+            div.ondragstart = e => e.dataTransfer.setData('text', task.id);
+            div.onclick = () => editTask(task.id);
+
+            const colors = COLORS[currentContext];
+            const doneCount = task.checklist ? task.checklist.filter(c => c.done).length : 0;
+            const totalCount = task.checklist ? task.checklist.length : 0;
+            const prog = totalCount > 0 ? (doneCount/totalCount)*100 : 0;
+
+            const labels = { low: 'Baixo', medium: 'Média', high: 'Urgente' };
+            const priorityColors = { low: 'bg-emerald-500 text-white', medium: 'bg-amber-400 text-slate-900', high: 'bg-red-500 text-white' };
+            const priorityBorderColors = { low: '#10b981', medium: '#fbbf24', high: '#ef4444' };
+
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-4">
+                    <span class="text-[9px] lg:text-[10px] uppercase tracking-widest font-black px-2.5 py-1 rounded-lg shadow-sm ${isOverdue ? 'bg-red-600 text-white' : priorityColors[task.priority]}">
+                        ${isOverdue ? 'ATRASADO' : labels[task.priority]}
+                    </span>
+                    <span class="material-symbols-outlined text-slate-300 text-base lg:text-lg opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">open_in_new</span>
+                </div>
+                <h4 class="font-black text-sm mb-3 text-slate-800 line-clamp-2 leading-relaxed">${task.title}</h4>
+                <div class="flex flex-wrap gap-1.5 mb-5">
+                    <span class="text-[9px] font-black px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500 border border-slate-200">${task.sector}</span>
+                    ${task.subject ? `<span class="text-[9px] font-black px-2.5 py-1 rounded-lg" style="background-color: ${colors.secondary}15; color: ${colors.secondary}">${task.subject}</span>` : ''}
+                </div>
+                ${totalCount > 0 ? `
+                    <div class="space-y-2.5 mb-5">
+                        <div class="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                            <span>Conclusão</span>
+                            <span class="text-slate-800 font-black">${doneCount}/${totalCount}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full transition-all duration-700 rounded-full" style="width: ${prog}%; background-color: ${currentContext === 'work' ? COLORS.work.accent1 : COLORS.college.secondary}"></div>
+                        </div>
+                    </div>
+                ` : ''}
+                <div class="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+                    <div class="flex -space-x-2">
+                        <div class="size-7 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[9px] font-black text-slate-400 shadow-sm">U</div>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-[10px] lg:text-[11px] font-black ${isOverdue ? 'text-red-500' : 'text-slate-400'}">
+                        <span class="material-symbols-outlined text-sm">calendar_month</span> ${task.deadline ? task.deadline.split('-').reverse().join('/') : 'S/P'}
+                    </div>
+                </div>
+            `;
+            div.style.borderLeft = `6px solid ${isOverdue ? '#ff4d4d' : priorityBorderColors[task.priority]}`;
+            return div;
+        };
+
+        // --- Event Handlers ---
+        window.openTaskModal = () => {
+            document.getElementById('taskForm').reset();
+            document.getElementById('taskId').value = '';
+            document.getElementById('checklistItems').innerHTML = '';
+            document.getElementById('deleteBtn').classList.add('hidden');
+            
+            const cfg = settings[currentContext];
+            document.getElementById('taskSector').innerHTML = cfg.sectors.map(s => `<option value="${s}">${s}</option>`).join('');
+            document.getElementById('taskStatus').innerHTML = cfg.statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+            
+            if(currentContext === 'college') {
+                document.getElementById('subjectField').classList.remove('hidden');
+                document.getElementById('taskSubject').innerHTML = '<option value="">Nenhuma</option>' + cfg.subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+            } else document.getElementById('subjectField').classList.add('hidden');
+            
+            document.getElementById('taskModal').classList.remove('hidden');
+            document.getElementById('modalTitle').innerText = "Nova Demanda";
+        };
+
+        window.closeTaskModal = () => document.getElementById('taskModal').classList.add('hidden');
+
+        window.addChecklistItem = (text = '', done = false) => {
+            const div = document.createElement('div');
+            div.className = "flex items-center gap-3 group p-2 rounded-xl hover:bg-slate-50 transition-all";
+            div.innerHTML = `
+                <input type="checkbox" ${done ? 'checked' : ''} class="size-5 rounded-lg border-slate-300 text-blue-900 focus:ring-slate-400">
+                <input type="text" value="${text}" placeholder="Nota rápida..." class="flex-1 bg-transparent border-none border-b border-transparent focus:border-slate-300 focus:ring-0 text-sm p-0 h-10 font-bold text-slate-600">
+                <button type="button" onclick="this.parentElement.remove()" class="text-slate-300 hover:text-red-500 transition-opacity"><span class="material-symbols-outlined">delete_sweep</span></button>
+            `;
+            document.getElementById('checklistItems').appendChild(div);
+        };
+
+        window.saveTask = async () => {
+            if (!user) return;
+            const title = document.getElementById('taskTitle').value;
+            if(!title) return;
+            const id = document.getElementById('taskId').value;
+            const check = Array.from(document.querySelectorAll('#checklistItems > div')).map(row => ({ 
+                text: row.querySelector('input[type="text"]').value, 
+                done: row.querySelector('input[type="checkbox"]').checked 
+            })).filter(i => i.text.trim() !== '');
+
+            const taskData = {
+                context: currentContext,
+                title,
+                sector: document.getElementById('taskSector').value,
+                status: document.getElementById('taskStatus').value,
+                priority: document.getElementById('taskPriority').value,
+                deadline: document.getElementById('taskDeadline').value,
+                desc: document.getElementById('taskDesc').value,
+                subject: currentContext === 'college' ? document.getElementById('taskSubject').value : '',
+                checklist: check,
+                updatedAt: new Date().getTime()
+            };
+
+            if (id) {
+                const taskRef = doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id);
+                await withRetry(() => updateDoc(taskRef, taskData));
+            } else {
+                const newTaskRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'tasks'));
+                await withRetry(() => setDoc(newTaskRef, taskData));
+            }
+            closeTaskModal();
+        };
+
+        window.editTask = (id) => {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+            openTaskModal();
+            document.getElementById('taskId').value = task.id;
+            document.getElementById('taskTitle').value = task.title;
+            document.getElementById('taskSector').value = task.sector;
+            document.getElementById('taskStatus').value = task.status;
+            document.getElementById('taskPriority').value = task.priority;
+            document.getElementById('taskDeadline').value = task.deadline || '';
+            document.getElementById('taskDesc').value = task.desc || '';
+            if(task.subject) document.getElementById('taskSubject').value = task.subject;
+            task.checklist?.forEach(i => addChecklistItem(i.text, i.done));
+            document.getElementById('deleteBtn').classList.remove('hidden');
+            document.getElementById('modalTitle').innerText = "Editar Demanda";
+        };
+
+        window.deleteTask = async () => {
+            if (!user) return;
+            const id = document.getElementById('taskId').value;
+            if (!id) return;
+            const taskRef = doc(db, 'artifacts', appId, 'users', user.uid, 'tasks', id);
+            await withRetry(() => deleteDoc(taskRef));
+            closeTaskModal();
+        };
+
+        window.openConfigModal = () => {
+            const cfg = settings[currentContext];
+            document.getElementById('configCtxName').innerText = currentContext === 'work' ? 'Modo Coordenação' : 'Modo Faculdade';
+            if(currentContext === 'work') document.getElementById('cfgSubjDiv').classList.add('hidden');
+            else document.getElementById('cfgSubjDiv').classList.remove('hidden');
+            renderCfgLists();
+            document.getElementById('configModal').classList.remove('hidden');
+        };
+
+        window.closeConfigModal = () => document.getElementById('configModal').classList.add('hidden');
+
+        const renderCfgLists = () => {
+            const cfg = settings[currentContext];
+            const renderDefault = (id, key) => { 
+                document.getElementById(id).innerHTML = cfg[key].map((v, i) => `
+                    <div class="flex items-center justify-between p-3.5 bg-slate-100 rounded-2xl border border-slate-200 text-[11px] font-black text-slate-700 shadow-sm">
+                        <span class="truncate pr-2">${v}</span>
+                        <button onclick="removeCfgItem('${key}', ${i})" class="text-slate-300 hover:text-red-500 shrink-0">
+                            <span class="material-symbols-outlined text-sm">close</span>
+                        </button>
+                    </div>`).join(''); 
+            };
+            const renderStatuses = () => {
+                document.getElementById('cfgStatuses').innerHTML = cfg.statuses.map((v, i) => `
+                    <div class="flex items-center justify-between p-3.5 bg-slate-100 rounded-2xl border border-slate-200 text-[11px] font-black text-slate-700 shadow-sm">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="flex flex-col gap-0.5 shrink-0">
+                                <button onclick="moveCfgItem('statuses', ${i}, -1)" class="text-slate-400 hover:text-primary transition-colors h-3 ${i === 0 ? 'invisible' : ''}">
+                                    <span class="material-symbols-outlined text-sm">expand_less</span>
+                                </button>
+                                <button onclick="moveCfgItem('statuses', ${i}, 1)" class="text-slate-400 hover:text-primary transition-colors h-3 ${i === cfg.statuses.length - 1 ? 'invisible' : ''}">
+                                    <span class="material-symbols-outlined text-sm">expand_more</span>
+                                </button>
+                            </div>
+                            <span class="truncate">${v}</span>
+                        </div>
+                        <button onclick="removeCfgItem('statuses', ${i})" class="text-slate-300 hover:text-red-500 shrink-0">
+                            <span class="material-symbols-outlined text-sm">close</span>
+                        </button>
+                    </div>`).join('');
+            };
+            renderDefault('cfgSectors', 'sectors');
+            if(currentContext === 'college') renderDefault('cfgSubjects', 'subjects');
+            renderStatuses();
+        };
+
+        window.moveCfgItem = async (key, index, direction) => {
+            if (!user) return;
+            const arr = [...settings[currentContext][key]];
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= arr.length) return;
+            [arr[index], arr[targetIndex]] = [arr[targetIndex], arr[index]];
+            const newSettings = JSON.parse(JSON.stringify(settings));
+            newSettings[currentContext][key] = arr;
+            await withRetry(() => setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), newSettings));
+        };
+
+        window.addCfgItem = async (key, inpId) => {
+            if (!user) return;
+            const val = document.getElementById(inpId).value.trim();
+            if(val) {
+                const newSettings = JSON.parse(JSON.stringify(settings));
+                newSettings[currentContext][key].push(val);
+                document.getElementById(inpId).value = '';
+                await withRetry(() => setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), newSettings));
+            }
+        };
+
+        window.removeCfgItem = async (key, i) => {
+            if (!user) return;
+            const newSettings = JSON.parse(JSON.stringify(settings));
+            newSettings[currentContext][key].splice(i, 1);
+            await withRetry(() => setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), newSettings));
+        };
+
+        // --- Início ---
+        if (isSidebarCollapsed && window.innerWidth >= 1024) {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.add('sidebar-collapsed');
+            sidebar.classList.replace('w-72', 'w-20');
+        }
+
+        initAuth();
+    </script>
+</body>
+</html>
